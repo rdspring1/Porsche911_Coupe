@@ -19,6 +19,7 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/spage.h"
 #include "userprog/fdt.h"
 
 #define MAX_NAME_LEN 32
@@ -328,6 +329,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 		goto done; 
 	}
 
+   hash_init (&t->spagedir, spage_hash, spage_less, NULL);
+
 	/* Read program headers. */
 	file_ofs = ehdr.e_phoff;
 	for (i = 0; i < ehdr.e_phnum; i++) 
@@ -409,7 +412,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
-
 	success = true;
 
 done:
@@ -512,8 +514,18 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		/* Get a page of memory. */
 		uint8_t *kpage = palloc_get_page (PAL_USER);
-		if (kpage == NULL)
-			return false;
+      if (kpage == NULL)
+         return false;
+
+      struct spage * p = (struct spage *) malloc(sizeof(struct spage));
+	   if(child == NULL)
+         return false;
+		   
+      p->addr = kpage;
+      p->page_state = MEMORY;
+      p->shared = NULL;
+      p->readonly = false;
+      hash_insert (thread_current()->spagedir, &p->hash_elem);
 
 		/* Load this page. */
 		if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
