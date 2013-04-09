@@ -20,7 +20,8 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "threads/spage.h"
+#include "userprog/fdt.h"
+#include "vm/spage.h"
 
 #define MAX_NAME_LEN 32
 #define MAX_NUM_BYTES 4080
@@ -523,7 +524,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	   if(p == NULL)
          return false;
 		   
-      p->addr = kpage;
+      p->addr = upage;
       p->state = MEMORY;
       p->readonly = false;
       hash_insert (&thread_current()->spagedir, &p->hash_elem);
@@ -568,6 +569,7 @@ setup_stack (void **esp)
 		else
 			palloc_free_page (kpage);
 	} 
+
 	return success;
 }
 

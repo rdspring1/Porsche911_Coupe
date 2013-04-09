@@ -1,4 +1,4 @@
-#include "threads/spage.h"
+#include "vm/spage.h"
 #include "lib/kernel/hash.h"
 
 unsigned
@@ -24,7 +24,6 @@ spage_lookup (struct hash * pages, const void *address)
 {
   struct spage p;
   struct hash_elem *e;
-
   p.addr = address;
   e = hash_find (pages, &p.hash_elem);
   return e != NULL ? hash_entry (e, struct spage, hash_elem) : NULL;
@@ -37,7 +36,6 @@ spage_delete (struct hash * pages, const void *address)
 {
   struct spage p;
   struct hash_elem *e;
-
   p.addr = address;
   e = hash_delete (pages, &p.hash_elem);
   return e != NULL ? hash_entry (e, struct spage, hash_elem) : NULL;
