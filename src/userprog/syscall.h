@@ -19,7 +19,5 @@ void syscall_init (void);
 
 typedef void exit_action_func (struct exitstatus * es, void *aux);
 void exit_foreach(exit_action_func * es, void * aux);
-static void exitcmd(int status);
-
 void sysexit(int status);
 #endif /* userprog/syscall.h */

@@ -1,21 +1,28 @@
+#ifndef THREADS_SPAGE_H
+#define THREADS_SPAGE_H
+
+#include <debug.h>
+#include "lib/kernel/hash.h"
+
 enum page_status
-  {
+{
     MEMORY,   /* Page currently stored in memory */
     DISK,     /* Page stored on the disk */
     SWAP,     /* Page swapped out of memory */
-    SHARED    /* Page already located in physical memory */
-  };
+    ZERO      /* Page completely set to zero */
+};
 
 struct spage
 {
     struct hash_elem hash_elem; /* Hash table element. */
-    void *addr;                 /* Virtual address. */
-    enum page_state;            /* Location of Page */
-    void *shared;		           /* Memory Address of Shared Page */
+    const void *addr;                 /* Virtual address. */
+    enum page_status state;     /* Location of Page */
     bool readonly;              /* Read Only Setting */
 };
 
-unsigned spage_hash (const struct hash_elem *p_, void *aux UNUSED);
-bool spage_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
-struct spage * spage_lookup (struct spagedir pages, const void *address);
-struct spage * spage_delete (struct spagedir pages, const void *address);
+unsigned spage_hash_hash_func (const struct hash_elem *e, void *aux UNUSED);
+bool spage_hash_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED);
+struct spage * spage_lookup (struct hash * pages, const void *address);
+struct spage * spage_delete (struct hash * pages, const void *address);
+
+#endif

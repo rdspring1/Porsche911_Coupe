@@ -19,8 +19,8 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "threads/spage.h"
 #include "userprog/fdt.h"
+#include "threads/spage.h"
 
 #define MAX_NAME_LEN 32
 #define MAX_NUM_BYTES 4080
@@ -329,7 +329,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 		goto done; 
 	}
 
-   hash_init (&t->spagedir, spage_hash, spage_less, NULL);
+   hash_init (&t->spagedir, spage_hash_hash_func, spage_hash_less_func, NULL);
 
 	/* Read program headers. */
 	file_ofs = ehdr.e_phoff;
@@ -512,20 +512,22 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* Get a page of memory. */
+		/* Get a page of memory. - kernel frame */
 		uint8_t *kpage = palloc_get_page (PAL_USER);
       if (kpage == NULL)
          return false;
 
+      printf("User Page: %p\n", upage);
+      printf("Kernel Physical Frame: %p\n", kpage); 
+
       struct spage * p = (struct spage *) malloc(sizeof(struct spage));
-	   if(child == NULL)
+	   if(p == NULL)
          return false;
 		   
       p->addr = kpage;
-      p->page_state = MEMORY;
-      p->shared = NULL;
+      p->state = MEMORY;
       p->readonly = false;
-      hash_insert (thread_current()->spagedir, &p->hash_elem);
+      hash_insert (&thread_current()->spagedir, &p->hash_elem);
 
 		/* Load this page. */
 		if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
