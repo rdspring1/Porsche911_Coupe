@@ -9,6 +9,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/fdt.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -19,7 +20,6 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "userprog/fdt.h"
 #include "threads/spage.h"
 
 #define MAX_NAME_LEN 32
@@ -140,7 +140,6 @@ process_wait (tid_t child_tid)
 				{
 					sema_down(&wp->sema);
 				}
-				//printf("RELEASED %d : %d\n", thread_current()->tid, child_tid);
 			}
 			list_remove(&wp->elem);
 			free(wp);
@@ -568,7 +567,7 @@ setup_stack (void **esp)
 			*esp = PHYS_BASE;
 		else
 			palloc_free_page (kpage);
-	}
+	} 
 	return success;
 }
 

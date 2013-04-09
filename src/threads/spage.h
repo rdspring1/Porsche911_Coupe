@@ -15,7 +15,8 @@ enum page_status
 struct spage
 {
     struct hash_elem hash_elem; /* Hash table element. */
-    const void *addr;                 /* Virtual address. */
+    const void *uaddr;          /* User Virtual Address. */
+    const void *kaddr;          /* Kernel Virtual Address */ 
     enum page_status state;     /* Location of Page */
     bool readonly;              /* Read Only Setting */
 };
