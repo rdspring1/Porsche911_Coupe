@@ -2,10 +2,13 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
+#include "userprog/syscall.h"
+#include "userprog/pagedir.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "userprog/syscall.h"
 #include "threads/vaddr.h"
+#include "threads/palloc.h"
+#include "vm/spage.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -154,8 +157,19 @@ page_fault (struct intr_frame *f)
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
    struct thread * tfault = pg_round_down (f->esp);
-   void* pageaddr = pg_round_down (fault_addr);
+   void* upage = pg_round_down (fault_addr);
+   if(!is_user_vaddr(upage))
+	   kill(f);
 
+   struct spage * page = spage_lookup(&tfault->spagedir, upage);
+   if(page == NULL)
+	   kill(f);
 
+   uint8_t *kpage = palloc_get_page (PAL_USER);
+
+   // TODO: Fetch data into frame and install page
+   pagedir_set_page (tfault->pagedir, upage, kpage, true);
+   
+   page->state = MEMORY;
 }
 
