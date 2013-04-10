@@ -1,5 +1,5 @@
-#ifndef THREADS_SPAGE_H
-#define THREADS_SPAGE_H
+#ifndef VM_SPAGE_H
+#define VM_SPAGE_H
 
 #include <debug.h>
 #include "lib/kernel/hash.h"
