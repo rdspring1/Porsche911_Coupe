@@ -8,5 +8,6 @@
 
 /* Page directory with kernel mappings only. */
 extern uint32_t *init_page_dir;
+extern swap_t *swaptable;
 
 #endif /* threads/init.h */

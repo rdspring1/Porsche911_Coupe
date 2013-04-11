@@ -15,9 +15,10 @@ enum page_status
 struct spage
 {
     struct hash_elem hash_elem; /* Hash table element. */
-    const void *addr;          /* User Virtual address. */
+    const void *addr;           /* User Virtual address. */
     enum page_status state;     /* Location of Page */
     bool readonly;              /* Read Only Setting */
+    uint32_t swapindex;         /* Index in the Swap Table */
 };
 
 unsigned spage_hash_hash_func (const struct hash_elem *e, void *aux UNUSED);

@@ -7,9 +7,9 @@
 struct swap_t
 {
    struct block * swapblock; /* Swap Disk Block Struct */
-   uint32_t * bitmap;             /* Track Swap Slots */
+   uint32_t * bitmap;        /* Track Swap Slots */
    uint32_t size;            /* Number of Swap Slots */
-   uint32_t inuse;           /* Number of used swap slots */
+   uint32_t inuse;           /* Number of Used Swap Slots */
 };
 
 int swap_read(uint32_t slot, struct swap_t * st, void** readptr);

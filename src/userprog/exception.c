@@ -10,6 +10,9 @@
 #include "threads/palloc.h"
 #include "vm/spage.h"
 
+// Extern
+extern swap_t *swaptable;
+
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -153,7 +156,7 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* TODO: To implement virtual memory, delete the rest of the function
+  /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
    struct thread * tfault = pg_round_down (f->esp);
@@ -165,11 +168,33 @@ page_fault (struct intr_frame *f)
    if(page == NULL)
 	   kill(f);
 
-   uint8_t *kpage = palloc_get_page (PAL_USER);
-
-   // TODO: Fetch data into frame and install page
-   pagedir_set_page (tfault->pagedir, upage, kpage, true);
-   
+   // Fetch data into frame and install page
+   switch(page->state)
+   {
+      case DISK:
+      {
+         // TODO: READ PAGE CONTENTS FROM FILE RDS
+      }
+      break;
+      case SWAP:
+      {
+         uint8_t *kpage = palloc_get_page (PAL_USER);
+         swap_read(page->swapindex, swaptable, &kpage);
+         pagedir_set_page (tfault->pagedir, upage, kpage, true);
+      }
+      break;
+      case ZERO:
+      {
+         uint8_t *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+         pagedir_set_page (tfault->pagedir, upage, kpage, true);
+      }
+      break;
+      case MEMORY:
+      {
+         assert(page->state == MEMORY);
+      }
+      break;
+   }
    page->state = MEMORY;
 }
 

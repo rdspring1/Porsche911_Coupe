@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "vm/swap.h"
 #include "devices/kbd.h"
 #include "devices/input.h"
 #include "devices/serial.h"
@@ -127,6 +128,7 @@ main (void)
   filesys_init (format_filesys);
 #endif
 
+  swaptable = swap_init();
   printf ("Boot complete.\n");
   
   /* Run actions specified on kernel command line. */
