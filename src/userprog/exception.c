@@ -13,6 +13,9 @@
 #include "vm/spage.h"
 #include "vm/swap.h"
 
+/* Stack Growth */
+uint8_t * stack_bound;
+
 /* Swap Table RDS */
 struct swap_t *swaptable;
 
@@ -159,8 +162,9 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  printf("Fault Address %p\n", fault_addr);
-  printf("Stack Pointer %p\n", f->esp);
+  //printf("Fault Address %p\n", fault_addr);
+  //printf("Stack Pointer %p\n", f->esp);
+
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
@@ -171,7 +175,30 @@ page_fault (struct intr_frame *f)
    struct spage * page = spage_lookup(&thread_current()->spagedir, upage);
    if(page == NULL)
    {
-	   printf("STACK GROWTH HERE OR KILL PROCESS\n");
+	   if(((uint8_t *) fault_addr) < stack_bound)
+	   {
+			uint8_t *kpage;
+			bool success = false;
+
+			kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+			if (kpage != NULL) 
+			{
+				success = pagedir_set_page (thread_current()->pagedir, ((uint8_t *) stack_bound) - PGSIZE, kpage, true);
+				if (success)
+				{
+					stack_bound = ((uint8_t *) stack_bound) - PGSIZE;
+				}
+				else
+				{
+					palloc_free_page (kpage);
+				}
+			} 
+			return;
+	   }
+	   else
+	   {
+		   printf("KILL PROCESS\n");
+	   }
    }
 
    // Fetch data into frame and install page

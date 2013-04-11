@@ -9,4 +9,6 @@ void process_exit (void);
 void process_activate (void);
 void addChildProc(tid_t childid);
 
+extern uint8_t * stack_bound; 
+
 #endif /* userprog/process.h */
