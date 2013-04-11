@@ -1,4 +1,5 @@
 #include "userprog/exception.h"
+#include <debug.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
@@ -8,10 +9,12 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
+#include "threads/init.h"
 #include "vm/spage.h"
+#include "vm/swap.h"
 
-// Extern
-extern swap_t *swaptable;
+/* Swap Table RDS */
+struct swap_t *swaptable;
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -179,7 +182,7 @@ page_fault (struct intr_frame *f)
       case SWAP:
       {
          uint8_t *kpage = palloc_get_page (PAL_USER);
-         swap_read(page->swapindex, swaptable, &kpage);
+         swap_read(page->swapindex, swaptable, (void**) &kpage);
          pagedir_set_page (tfault->pagedir, upage, kpage, true);
       }
       break;
@@ -191,7 +194,7 @@ page_fault (struct intr_frame *f)
       break;
       case MEMORY:
       {
-         assert(page->state == MEMORY);
+         ASSERT(page->state == MEMORY);
       }
       break;
    }

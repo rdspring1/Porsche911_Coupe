@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "vm/swap.h"
 #include "devices/kbd.h"
 #include "devices/input.h"
 #include "devices/serial.h"
@@ -41,6 +40,9 @@
 
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
+
+/* Swap Table RDS */
+struct swap_t *swaptable;
 
 #ifdef FILESYS
 /* -f: Format the file system? */

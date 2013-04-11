@@ -5,9 +5,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "vm/swap.h"
 
 /* Page directory with kernel mappings only. */
 extern uint32_t *init_page_dir;
-extern swap_t *swaptable;
+
+/* Swap Table RDS */
+extern struct swap_t *swaptable;
 
 #endif /* threads/init.h */
