@@ -90,10 +90,14 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
   if (pages != NULL) 
     {
       if (flags & PAL_ZERO)
+	  {
         memset (pages, 0, PGSIZE * page_cnt);
+	  }
 
 	  if(flags & PAL_USER)
+	  {
 		  pool->frame_table[page_idx] = pages;
+	  }
     }
   else 
     {

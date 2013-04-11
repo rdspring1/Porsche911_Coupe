@@ -159,17 +159,20 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  printf("Fault Address %p\n", fault_addr);
+  printf("Stack Pointer %p\n", f->esp);
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-   struct thread * tfault = pg_round_down (f->esp);
    void* upage = pg_round_down (fault_addr);
    if(!is_user_vaddr(upage))
 	   kill(f);
 
-   struct spage * page = spage_lookup(&tfault->spagedir, upage);
+   struct spage * page = spage_lookup(&thread_current()->spagedir, upage);
    if(page == NULL)
-	   kill(f);
+   {
+	   printf("STACK GROWTH HERE OR KILL PROCESS\n");
+   }
 
    // Fetch data into frame and install page
    switch(page->state)
@@ -183,13 +186,13 @@ page_fault (struct intr_frame *f)
       {
          uint8_t *kpage = palloc_get_page (PAL_USER);
          swap_read(page->swapindex, swaptable, (void**) &kpage);
-         pagedir_set_page (tfault->pagedir, upage, kpage, true);
+         pagedir_set_page (thread_current()->pagedir, upage, kpage, true);
       }
       break;
       case ZERO:
       {
          uint8_t *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-         pagedir_set_page (tfault->pagedir, upage, kpage, true);
+         pagedir_set_page (thread_current()->pagedir, upage, kpage, true);
       }
       break;
       case MEMORY:

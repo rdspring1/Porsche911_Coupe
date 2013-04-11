@@ -20,7 +20,6 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "userprog/fdt.h"
 #include "vm/spage.h"
 
 #define MAX_NAME_LEN 32
@@ -517,8 +516,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (kpage == NULL)
          return false;
 
-      printf("User Page: %p\n", upage);
-      printf("Kernel Physical Frame: %p\n", kpage); 
+      //printf("User Page: %p\n", upage);
+      //printf("Kernel Physical Frame: %p\n", kpage); 
 
       struct spage * p = (struct spage *) malloc(sizeof(struct spage));
 	   if(p == NULL)
