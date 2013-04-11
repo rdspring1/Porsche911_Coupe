@@ -175,7 +175,9 @@ page_fault (struct intr_frame *f)
    struct spage * page = spage_lookup(&thread_current()->spagedir, upage);
    if(page == NULL)
    {
-	   if(((uint8_t *) fault_addr) < stack_bound)
+	   int stackdiff = ((uint8_t *) f->esp) - ((uint8_t *) fault_addr);
+	   //printf("Stack Difference %d\n", stackdiff);
+	   if(((uint8_t *) fault_addr) < stack_bound && (stackdiff <= 0 || stackdiff == 4 || stackdiff == 32))
 	   {
 			uint8_t *kpage;
 			bool success = false;
@@ -197,7 +199,8 @@ page_fault (struct intr_frame *f)
 	   }
 	   else
 	   {
-		   printf("KILL PROCESS\n");
+		   //printf("KILL PROCESS\n");
+		   kill(f);
 	   }
    }
 
@@ -213,13 +216,17 @@ page_fault (struct intr_frame *f)
       {
          uint8_t *kpage = palloc_get_page (PAL_USER);
          swap_read(page->swapindex, swaptable, (void**) &kpage);
-         pagedir_set_page (thread_current()->pagedir, upage, kpage, true);
+         bool success = pagedir_set_page (thread_current()->pagedir, upage, kpage, true);
+		 if(!success)
+			 palloc_free_page (kpage);
       }
       break;
       case ZERO:
       {
          uint8_t *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-         pagedir_set_page (thread_current()->pagedir, upage, kpage, true);
+         bool success = pagedir_set_page (thread_current()->pagedir, upage, kpage, true);
+		 if(!success)
+			 palloc_free_page (kpage);
       }
       break;
       case MEMORY:
