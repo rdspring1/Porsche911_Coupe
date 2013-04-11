@@ -512,14 +512,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* Get a page of memory. - kernel frame */
-		uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL)
-         return false;
-
-      //printf("User Page: %p\n", upage);
-      //printf("Kernel Physical Frame: %p\n", kpage); 
-
       struct spage * p = (struct spage *) malloc(sizeof(struct spage));
 	   if(p == NULL)
          return false;
@@ -528,6 +520,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       p->state = MEMORY;
       p->readonly = false;
       hash_insert (&thread_current()->spagedir, &p->hash_elem);
+
+      /* Get a page of memory. - kernel frame */
+		uint8_t *kpage = palloc_get_page (PAL_USER);
+      if (kpage == NULL)
+         return false;
+
+      //printf("User Page: %p\n", upage);
+      //printf("Kernel Physical Frame: %p\n", kpage); 
 
 		/* Load this page. */
 		if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
