@@ -53,7 +53,7 @@ static void syscreate(struct intr_frame* frame, const char* file, unsigned size)
 static void sysexec(struct intr_frame* frame, const char* file);
 static void sysfilesize(struct intr_frame *frame, int fd);
 static void sysopen(struct intr_frame *frame, const char *file);
-static void sysread(struct intr_frame *frame, int fd, void *buffer, unsigned size);
+static void sysread(struct intr_frame *frame, int fd, void* buffer, unsigned size);
 static void sysremove(struct intr_frame* frame, const char* file);
 static void sysseek(int fd, unsigned position);
 static void systell(struct intr_frame *frame, int fd);
@@ -504,7 +504,7 @@ sysopen(struct intr_frame *frame, const char *file)
 }
 
 static void
-sysread(struct intr_frame *frame, int fd, void *buffer, unsigned size)
+sysread(struct intr_frame *frame, int fd, void* buffer, unsigned size)
 {
 	// special case
 	if (fd == STDIN_FILENO) 
@@ -605,7 +605,7 @@ bool ignore_remove(tid_t id)
 		struct childproc * es = list_entry (e, struct childproc, elem);
 		if(es->childid == id)
 		{
-			list_remove(es);
+			list_remove((void *) es);
 			free(es);
 			return true;
 		}
