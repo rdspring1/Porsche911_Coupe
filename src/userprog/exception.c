@@ -189,7 +189,7 @@ page_fault (struct intr_frame *f)
 
 		if(((uint8_t *) fault_addr) < stack_bound && (stackdiff <= 0 || stackdiff == 4 || stackdiff == 32))
 		{
-			uint8_t *kpage = frame_selector (upage);
+			uint8_t *kpage = frame_selector (upage, PAL_USER | PAL_ZERO);
 			if (kpage != NULL) 
 			{
 				if (!install_page(upage, kpage, true))
@@ -211,6 +211,7 @@ page_fault (struct intr_frame *f)
 						p->readonly = true;
 						p->page_read_bytes = 0;
 						p->page_zero_bytes = PGSIZE;
+                  lock_init(&p->spagelock);
 						hash_insert (&thread_current()->spagedir, &p->hash_elem);
 					}
 				}
@@ -232,7 +233,7 @@ page_fault (struct intr_frame *f)
 				// READ PAGE CONTENTS FROM FILE RDS
 				file_seek (page->file, page->ofs);
 				/* Get a page of memory. - kernel frame */
-				uint8_t *kpage = frame_selector (upage);
+				uint8_t *kpage = frame_selector (upage, PAL_USER);
 				if (kpage != NULL)
 				{
 					/* Load this page. */
@@ -253,7 +254,7 @@ page_fault (struct intr_frame *f)
 			break;
 		case ZERO:
 			{
-				uint8_t *kpage = frame_selector (upage);
+				uint8_t *kpage = frame_selector (upage, PAL_USER | PAL_ZERO);
 				if(!install_page(upage, kpage, true))
 					palloc_free_page (kpage);
 			}
@@ -262,7 +263,7 @@ page_fault (struct intr_frame *f)
 			{
 				file_seek (page->file, page->ofs);
 				/* Get a page of memory. - kernel frame */
-				uint8_t *kpage = frame_selector (upage);
+				uint8_t *kpage = frame_selector (upage, PAL_USER);
 				if (kpage != NULL)
 				{
 					/* Load this page. */
@@ -271,6 +272,7 @@ page_fault (struct intr_frame *f)
 						printf("Failed to read from file\n");
 						palloc_free_page (kpage);
 					}
+               memset (kpage + page->page_read_bytes, 0, page->page_zero_bytes);
 
 					/* Add the page to the process's address space. */
 					if (!install_page (upage, kpage, page->readonly)) 
@@ -283,7 +285,7 @@ page_fault (struct intr_frame *f)
 			break;
 		case SWAP:
 			{
-				uint8_t *kpage = palloc_get_page (PAL_USER);
+				uint8_t *kpage = frame_selector (upage, PAL_USER);
 				swap_read(page->swapindex, swaptable, (void**) &kpage);
 				if(!install_page(upage, kpage, true))
 					palloc_free_page (kpage);
