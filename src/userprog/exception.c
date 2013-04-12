@@ -11,6 +11,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/init.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
@@ -183,17 +184,36 @@ page_fault (struct intr_frame *f)
 	if(page == NULL)
 	{
 		int stackdiff = ((uint8_t *) f->esp) - ((uint8_t *) fault_addr);
+		upage = ((uint8_t *) stack_bound) - PGSIZE;
 		//printf("Stack Difference %d\n", stackdiff);
 
 		if(((uint8_t *) fault_addr) < stack_bound && (stackdiff <= 0 || stackdiff == 4 || stackdiff == 32))
 		{
-			uint8_t *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+			uint8_t *kpage = frame_selector (upage);
 			if (kpage != NULL) 
 			{
-				if (install_page(((uint8_t *) stack_bound) - PGSIZE, kpage, true))
-					stack_bound = ((uint8_t *) stack_bound) - PGSIZE;
-				else
+				if (!install_page(upage, kpage, true))
+				{
 					palloc_free_page (kpage);
+				}
+				else
+				{
+					stack_bound = upage;
+
+					// Add stack page to supplementary page table - rds
+					struct spage * p = (struct spage *) malloc(sizeof(struct spage));
+					if(p == NULL)
+					{
+						p->addr = upage;
+						p->state = ZERO;
+						p->file = NULL;
+						p->ofs = 0;
+						p->readonly = true;
+						p->page_read_bytes = 0;
+						p->page_zero_bytes = PGSIZE;
+						hash_insert (&thread_current()->spagedir, &p->hash_elem);
+					}
+				}
 			} 
 			return;
 		}
@@ -212,7 +232,7 @@ page_fault (struct intr_frame *f)
 				// READ PAGE CONTENTS FROM FILE RDS
 				file_seek (page->file, page->ofs);
 				/* Get a page of memory. - kernel frame */
-				uint8_t *kpage = palloc_get_page (PAL_USER);
+				uint8_t *kpage = frame_selector (upage);
 				if (kpage != NULL)
 				{
 					/* Load this page. */
@@ -225,7 +245,7 @@ page_fault (struct intr_frame *f)
 					/* Add the page to the process's address space. */
 					if (!install_page (upage, kpage, page->readonly)) 
 					{
-						//printf("Failed to add page to process's address space\n");
+						printf("Failed to add page to process's address space\n");
 						palloc_free_page (kpage);
 					}
 				}
@@ -233,7 +253,7 @@ page_fault (struct intr_frame *f)
 			break;
 		case ZERO:
 			{
-				uint8_t *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+				uint8_t *kpage = frame_selector (upage);
 				if(!install_page(upage, kpage, true))
 					palloc_free_page (kpage);
 			}
@@ -242,7 +262,7 @@ page_fault (struct intr_frame *f)
 			{
 				file_seek (page->file, page->ofs);
 				/* Get a page of memory. - kernel frame */
-				uint8_t *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+				uint8_t *kpage = frame_selector (upage);
 				if (kpage != NULL)
 				{
 					/* Load this page. */

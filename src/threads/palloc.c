@@ -26,20 +26,26 @@
    half to the user pool.  That should be huge overkill for the
    kernel pool, but that's just fine for demonstration purposes. */
 
+
+static size_t page_idx;
+struct frame * frame_eviction(struct frame** framelist);
+
 /* A memory pool. */
 struct pool
   {
     struct lock lock;                   /* Mutual exclusion. */
     struct bitmap *used_map;            /* Bitmap of free pages. */
-	 uint8_t **frame_table;				    /* An array of pointers to allocated pages */
     uint8_t *base;                      /* Base of pool. */
+	size_t size;						/* Size of pool */
+	int index;							/* Index for framelist */
+    struct frame** framelist;           /* Array of frames */
   };
 
 /* Two pools: one for kernel data, one for user pages. */
 static struct pool kernel_pool, user_pool;
 
 static void init_pool (struct pool *, void *base, size_t page_cnt,
-                       const char *name, enum palloc_flags flags);
+                       const char *name);
 static bool page_from_pool (const struct pool *, void *page);
 
 /* Initializes the page allocator.  At most USER_PAGE_LIMIT
@@ -58,8 +64,22 @@ palloc_init (size_t user_page_limit)
   kernel_pages = free_pages - user_pages;
 
   /* Give half of memory to kernel, half to user. */
-  init_pool (&kernel_pool, free_start, kernel_pages, "kernel pool", PAL_KERNEL);
-  init_pool (&user_pool, free_start + kernel_pages * PGSIZE, user_pages, "user pool", PAL_USER);
+  init_pool (&kernel_pool, free_start, kernel_pages, "kernel pool");
+  init_pool (&user_pool, free_start + kernel_pages * PGSIZE, user_pages, "user pool");
+
+  // Initialize Frame List - rds
+  user_pool.framelist = (struct frame **) calloc(user_pages, sizeof(struct frame *));
+}
+
+
+void *frame_selector (void* upage)
+{
+	struct frame * f = (struct frame *) malloc(sizeof(struct frame));
+	f->t = thread_current();
+	f->upage = upage;
+	f->kpage = palloc_get_multiple(PAL_USER | PAL_ZERO, 1);
+	user_pool.framelist[page_idx] = f;
+	return f->kpage;
 }
 
 /* Obtains and returns a group of PAGE_CNT contiguous free pages.
@@ -73,7 +93,6 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 {
   struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
   void *pages;
-  size_t page_idx;
 
   if (page_cnt == 0)
     return NULL;
@@ -93,11 +112,6 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 	  {
         memset (pages, 0, PGSIZE * page_cnt);
 	  }
-
-	  if(flags & PAL_USER)
-	  {
-		  pool->frame_table[page_idx] = pages;
-	  }
     }
   else 
     {
@@ -105,12 +119,51 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
         PANIC ("palloc_get: out of pages");
 
 	  // When the frame_table is full, panic the kernel (RDS)
-	  // TODO: Implemenent Page Swapping
+	  // Implemenent Page EVICTION
 	  if(flags & PAL_USER)
-		PANIC ("frame table: out of pages");
+      {
+		  struct frame * f = frame_eviction(pool->framelist);
+		  pagedir_clear_page(f->t->pagedir, f->upage); 
+          memset (f->kpage, 0, PGSIZE * page_cnt);
+		  return f->kpage;
+	  }
     }
 
   return pages;
+}
+
+// TODO: Second Chance Page Replacement Algorithm
+struct frame * frame_eviction(struct frame** framelist)
+{
+	while(true)
+	{
+		if(user_pool.index == user_pool.size)
+			user_pool.index = 0;
+		
+		struct frame * f = framelist[user_pool.index];
+		bool accessed = pagedir_is_accessed(f->t->pagedir, f->upage);
+		bool dirty = pagedir_is_dirty(f->t->pagedir, f->upage);
+
+		if(accessed && dirty) // Used and Modified
+		{
+
+		}
+		else if(!accessed && dirty) // Not Used but Modified
+		{
+
+		}
+		else if(accessed && !dirty) // Used but Not Modified
+		{
+
+
+		}
+		else if(!accessed && !dirty) // Not Used or Modified
+		{
+			return f;
+		}
+
+		++user_pool.index;
+	}
 }
 
 /* Obtains a single free page and returns its kernel virtual
@@ -164,7 +217,7 @@ palloc_free_page (void *page)
 /* Initializes pool P as starting at START and ending at END,
    naming it NAME for debugging purposes. */
 static void
-init_pool (struct pool *p, void *base, size_t page_cnt, const char *name, enum palloc_flags flags) 
+init_pool (struct pool *p, void *base, size_t page_cnt, const char *name) 
 {
   /* We'll put the pool's used_map at its base.
      Calculate the space needed for the bitmap
@@ -180,10 +233,7 @@ init_pool (struct pool *p, void *base, size_t page_cnt, const char *name, enum p
   lock_init (&p->lock);
   p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages * PGSIZE);
   p->base = base + bm_pages * PGSIZE;
-  
-  if(flags & PAL_USER)
-  	p->frame_table = (uint8_t **) calloc(page_cnt, sizeof(uint8_t *));
-
+  p->size = page_cnt;
 }
 
 /* Returns true if PAGE was allocated from POOL,
