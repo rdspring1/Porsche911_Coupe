@@ -1,4 +1,3 @@
-#include "threads/palloc.h"
 #include <bitmap.h>
 #include <debug.h>
 #include <inttypes.h>
@@ -11,6 +10,11 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/palloc.h"
+#include "threads/init.h"
+#include "userprog/pagedir.h"
+#include "vm/spage.h"
+#include "vm/swap.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -33,14 +37,19 @@ struct lock fevict;
 
 void write_dirty_page(bool accessed, struct frame * f, struct spage * page);
 
+// EXTERN - RDS
+/* Swap Table RDS */
+struct swap_t *swaptable;
+
+
 /* A memory pool. */
 struct pool
   {
     struct lock lock;                   /* Mutual exclusion. */
     struct bitmap *used_map;            /* Bitmap of free pages. */
     uint8_t *base;                      /* Base of pool. */
-	 size_t size;						       /* Size of pool */
-	 int index;							       /* Index for framelist */
+	size_t size;						/* Size of pool */
+	size_t index;							/* Index for framelist */
     struct frame** framelist;           /* Array of frames */
   };
 
@@ -188,7 +197,7 @@ void write_dirty_page(bool accessed, struct frame * f, struct spage * page)
       pagedir_set_accessed(f->t->pagedir, page, false);
 
    page->state = SWAP;
-   page->swapindex = swap_write(st, &f->kpage);
+   page->swapindex = swap_write(swaptable, &f->kpage);
 
    // Panic Kernel if no more swap space
    ASSERT(page->swapindex != -1);

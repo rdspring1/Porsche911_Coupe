@@ -5,7 +5,7 @@
 #define PAGESECTORSIZE 8
 
 // Function Prototype
-void findslot(struct swap_t * st); 
+int findslot(struct swap_t * st); 
 void swap_delete(struct swap_t * st, uint32_t slot);
 
 struct swap_t * swap_init()
@@ -20,7 +20,7 @@ struct swap_t * swap_init()
 
    st->swapblock = swapdisk;
    st->size = block_size(swapdisk) / PAGESECTORSIZE;
-   st->bitmap = (int *) calloc(st->size, sizeof(uint32_t));
+   st->bitmap = (uint32_t *) calloc(st->size, sizeof(uint32_t));
    st->inuse = 0;
    lock_init(&st->lock);
    return st;
@@ -28,9 +28,6 @@ struct swap_t * swap_init()
 
 bool swap_read(uint32_t slot, struct swap_t * st, void** readptr)
 {
-   if(slot >= st->size)
-      return false;
-
    uint32_t i;
    for (i = 0; i < PAGESECTORSIZE; ++i)
    {
@@ -43,7 +40,7 @@ bool swap_read(uint32_t slot, struct swap_t * st, void** readptr)
 
 int swap_write(struct swap_t * st, void** writeptr)
 {
-   uint32_t slot = findslot(st);
+   int slot = findslot(st);
 
    // No More Stack Space
    if(slot == -1)
@@ -54,7 +51,7 @@ int swap_write(struct swap_t * st, void** writeptr)
    {
       block_write (st->swapblock, slot * PAGESECTORSIZE + i, *writeptr);
    }
-   return swap;
+   return slot;
 }
 
 void swap_delete(struct swap_t * st, uint32_t slot)
@@ -65,12 +62,12 @@ void swap_delete(struct swap_t * st, uint32_t slot)
    lock_release(&st->lock);
 }
 
-void findslot(struct swap_t * st) 
+int findslot(struct swap_t * st) 
 {
    lock_acquire (&st->lock);
-   uint32_t slot;
+   int slot;
    bool found = false;
-   for (slot = 0; i < st->size && !found; slot++)
+   for (slot = 0; slot < st->size && !found; slot++)
    {
     	if (st->bitmap[slot] == 0) {
 		   st->bitmap[slot] = 1;
