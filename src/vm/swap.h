@@ -26,11 +26,11 @@
 
 struct swap_t
 {
-   struct block * swapblock; /* Swap Disk Block Struct */
-   uint32_t * bitmap;        /* Track Swap Slots */
-   int size;            /* Number of Swap Slots */
-   uint32_t inuse;           /* Number of Used Swap Slots */
-   struct lock lock;         /* Lock for Swap Table */
+	struct block * swapblock; /* Swap Disk Block Struct */
+	uint32_t * bitmap;        /* Track Swap Slots */
+	int size;            /* Number of Swap Slots */
+	uint32_t inuse;           /* Number of Used Swap Slots */
+	struct lock lock;         /* Lock for Swap Table */
 };
 
 struct swap_t * swap_init(void);

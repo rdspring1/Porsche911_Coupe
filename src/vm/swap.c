@@ -26,10 +26,10 @@
 #define PAGESECTORSIZE 8
 
 // Function Prototype
-int findslot(struct swap_t * st); 
-void swap_delete(struct swap_t * st, uint32_t slot);
+static int findslot(struct swap_t * st); 
+static void swap_delete(struct swap_t * st, uint32_t slot);
 
-struct swap_t * swap_init()
+struct swap_t *swap_init()
 {
    struct swap_t * st = (struct swap_t *) malloc(sizeof(struct swap_t));
    if(st == NULL)
@@ -39,12 +39,12 @@ struct swap_t * swap_init()
    if(swapdisk == NULL)
       return NULL;
 
-   st->swapblock = swapdisk;
-   st->size = block_size(swapdisk) / PAGESECTORSIZE;
-   st->bitmap = (uint32_t *) calloc(st->size, sizeof(uint32_t));
-   st->inuse = 0;
-   lock_init(&st->lock);
-   return st;
+    st->swapblock = swapdisk;
+    st->size = block_size(swapdisk) / PAGESECTORSIZE;
+	st->bitmap = (uint32_t *) calloc(st->size, sizeof(uint32_t));
+	st->inuse = 0;
+	lock_init(&st->lock);
+   	return st;
 }
 
 bool swap_read(uint32_t slot, struct swap_t * st, void* readptr)
@@ -60,7 +60,7 @@ bool swap_read(uint32_t slot, struct swap_t * st, void* readptr)
    return true;
 }
 
-int swap_write(struct swap_t * st, void* writeptr)
+int swap_write(struct swap_t * st, void *writeptr)
 {
    int slot = findslot(st);
 
