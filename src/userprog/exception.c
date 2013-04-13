@@ -1,3 +1,22 @@
+// 4/12/2013
+//Name1: Ryan Spring
+//EID1: rds2367
+//CS login: rdspring
+//Email: rdspring1@gmail.com
+//Unique Number: 53426
+//
+//Name2: Jimmy Kettler
+//EID2: jbk97 
+//CS login: jimmyk3t
+//Email: jimmy.kettler@gmail.com
+//Unique Number: 53426
+//
+//Name3: Benjamin Holder
+//EID3: bdh874
+//CS login: bdh874
+//Email: benjamin.holder@utexas.edu
+//Unique Number: 53430
+
 #include "userprog/exception.h"
 #include <debug.h>
 #include <inttypes.h>
@@ -168,17 +187,17 @@ page_fault (struct intr_frame *f)
 	write = (f->error_code & PF_W) != 0;
 	user = (f->error_code & PF_U) != 0;
 
-	//printf("not_present: %d\n", not_present);
-	//printf("write: %d\n", write);
-	//printf("user: %d\n", user);
-
 	/* To implement virtual memory, delete the rest of the function
 	   body, and replace it with code that brings in the page to
 	   which fault_addr refers. */
 	void* upage = pg_round_down (fault_addr);
-
 	if(!is_user_vaddr(upage))
 		kill(f);
+
+	//printf("not_present: %d\n", not_present);
+	//printf("write: %d\n", write);
+	//printf("user: %d\n", user);
+	//printf("Page Fault - UPAGE %p\n", upage);
 
 	struct spage * page = spage_lookup(&thread_current()->spagedir, upage);
 	if(page == NULL)
@@ -202,7 +221,7 @@ page_fault (struct intr_frame *f)
 
 					// Add stack page to supplementary page table - rds
 					struct spage * p = (struct spage *) malloc(sizeof(struct spage));
-					if(p == NULL)
+					if(p != NULL)
 					{
 						p->addr = upage;
 						p->state = ZERO;
@@ -211,7 +230,7 @@ page_fault (struct intr_frame *f)
 						p->readonly = true;
 						p->page_read_bytes = 0;
 						p->page_zero_bytes = PGSIZE;
-                  lock_init(&p->spagelock);
+                  		lock_init(&p->spagelock);
 						hash_insert (&thread_current()->spagedir, &p->hash_elem);
 					}
 				}
@@ -221,6 +240,12 @@ page_fault (struct intr_frame *f)
 		else
 		{
 			// Terminate User Process
+			//printf("Page Fault - UPAGE %p\n", upage);
+			//printf("Stack Difference %d\n", stackdiff);
+			//printf("Stack: %p\n", f->esp);
+			//printf("FADDR: %p\n", fault_addr);
+			//printf("INSTRUCT: %p\n", f->eip);
+			//ASSERT(false);
 			kill(f);
 		}
 	}
@@ -263,7 +288,7 @@ page_fault (struct intr_frame *f)
 			{
 				file_seek (page->file, page->ofs);
 				/* Get a page of memory. - kernel frame */
-				uint8_t *kpage = frame_selector (upage, PAL_USER);
+				uint8_t *kpage = frame_selector (upage, PAL_USER | PAL_ZERO);
 				if (kpage != NULL)
 				{
 					/* Load this page. */
@@ -272,7 +297,6 @@ page_fault (struct intr_frame *f)
 						printf("Failed to read from file\n");
 						palloc_free_page (kpage);
 					}
-               memset (kpage + page->page_read_bytes, 0, page->page_zero_bytes);
 
 					/* Add the page to the process's address space. */
 					if (!install_page (upage, kpage, page->readonly)) 
@@ -286,7 +310,7 @@ page_fault (struct intr_frame *f)
 		case SWAP:
 			{
 				uint8_t *kpage = frame_selector (upage, PAL_USER);
-				swap_read(page->swapindex, swaptable, (void**) &kpage);
+				swap_read(page->swapindex, swaptable, (void*) kpage);
 				if(!install_page(upage, kpage, true))
 					palloc_free_page (kpage);
 			}

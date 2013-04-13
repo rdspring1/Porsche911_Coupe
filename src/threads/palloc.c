@@ -1,3 +1,23 @@
+// 4/12/2013
+//Name1: Ryan Spring
+//EID1: rds2367
+//CS login: rdspring
+//Email: rdspring1@gmail.com
+//Unique Number: 53426
+//
+//Name2: Jimmy Kettler
+//EID2: jbk97 
+//CS login: jimmyk3t
+//Email: jimmy.kettler@gmail.com
+//Unique Number: 53426
+//
+//Name3: Benjamin Holder
+//EID3: bdh874
+//CS login: bdh874
+//Email: benjamin.holder@utexas.edu
+//Unique Number: 53430
+
+
 #include <bitmap.h>
 #include <debug.h>
 #include <inttypes.h>
@@ -94,7 +114,11 @@ void *frame_selector (void* upage, enum palloc_flags flags)
 	f->t = thread_current();
 	f->upage = upage;
 	f->kpage = palloc_get_multiple(flags, 1);
-	user_pool.framelist[page_idx] = f;
+
+	lock_acquire(&fevict);
+	user_pool.framelist[page_idx - 1] = f;
+	lock_release(&fevict);
+
 	return f->kpage;
 }
 
@@ -148,62 +172,68 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
   return pages;
 }
 
-// TODO: Second Chance Page Replacement Algorithm
+// Second Chance Page Replacement Algorithm
 struct frame * frame_eviction(struct frame** framelist)
 {
-   lock_acquire(&fevict);
+   //lock_acquire(&fevict);
    bool found = false;
    struct frame * f = NULL;
 	while(!found)
 	{		
 		f = framelist[user_pool.index];
-      struct spage * page = spage_lookup(&f->t->spagedir, f->upage);
+		ASSERT(f != NULL);
+		//printf("frame %p\n", f);
+		//printf("upage %p\n", f->upage);
+		//printf("spagedir %p\n", &f->t->spagedir);
+        struct spage * page = spage_lookup(&f->t->spagedir, f->upage);
 		bool accessed = pagedir_is_accessed(f->t->pagedir, f->upage);
 		bool dirty = pagedir_is_dirty(f->t->pagedir, f->upage);
 
+		//printf("index: %d accessed: %d dirty: %d\n", user_pool.index, pagedir_is_accessed(f->t->pagedir, f->upage), pagedir_is_dirty(f->t->pagedir, f->upage));
 		if(accessed && dirty) // Used and Modified
 		{
-         write_dirty_page(true, f, page);
+         	write_dirty_page(true, f, page);
 		}
 		else if(!accessed && dirty) // Not Used but Modified
 		{
-         write_dirty_page(false, f, page);
+         	write_dirty_page(false, f, page);
 		}
 		else if(accessed && !dirty) // Used but Not Modified
 		{
-         pagedir_set_accessed(f->t->pagedir, page, false);
+         	pagedir_set_accessed(f->t->pagedir, f->upage, false);
 		}
 		else if(!accessed && !dirty) // Not Used or Modified
 		{
-         found = true;
+         	found = true;
+			page_idx = user_pool.index + 1;
 		}
 
 		++user_pool.index;
 
-		if(user_pool.index == user_pool.size)
+		if(user_pool.index == user_pool.size-1)
 			user_pool.index = 0;
 	}
-   lock_release(&fevict);
+   //lock_release(&fevict);
    return f;
 }
 
 void write_dirty_page(bool accessed, struct frame * f, struct spage * page)
 {
-   lock_release(&fevict);
+   //lock_release(&fevict);
    lock_acquire(&page->spagelock);
 
-   pagedir_set_dirty(f->t->pagedir, page, false);
+   pagedir_set_dirty(f->t->pagedir, f->upage, false);
    if(accessed)
-      pagedir_set_accessed(f->t->pagedir, page, false);
+      pagedir_set_accessed(f->t->pagedir, f->upage, false);
 
    page->state = SWAP;
-   page->swapindex = swap_write(swaptable, &f->kpage);
+   page->swapindex = swap_write(swaptable, f->kpage);
 
    // Panic Kernel if no more swap space
    ASSERT(page->swapindex != -1);
 
-   lock_acquire(&page->spagelock);
-   lock_acquire(&fevict);
+   lock_release(&page->spagelock);
+   //lock_acquire(&fevict);
 }
 
 /* Obtains a single free page and returns its kernel virtual
@@ -223,7 +253,7 @@ palloc_get_page (enum palloc_flags flags)
 void
 palloc_free_multiple (void *pages, size_t page_cnt) 
 {
-  bool user_pool = false;
+  bool upool = false;
   struct pool *pool;
   size_t page_idx;
 
@@ -237,7 +267,7 @@ palloc_free_multiple (void *pages, size_t page_cnt)
   }
   else if (page_from_pool (&user_pool, pages))
   { 
-    user_pool = true;
+    upool = true;
     pool = &user_pool;
   }
   else
@@ -247,10 +277,12 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 
   page_idx = pg_no (pages) - pg_no (pool->base);
 
-  if(user_pool)
+  if(upool && page_idx > 0)
   {
-     free(pool->framelist[page_idx]);
-     pool->framelist[page_idx] = 0;
+  	 //lock_acquire(&fevict);
+     free(pool->framelist[page_idx - 1]);
+     pool->framelist[page_idx - 1] = NULL;
+  	 //lock_release(&fevict);
   }
 
 #ifndef NDEBUG

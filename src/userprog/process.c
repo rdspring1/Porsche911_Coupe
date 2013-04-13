@@ -1,3 +1,22 @@
+// 4/12/2013
+//Name1: Ryan Spring
+//EID1: rds2367
+//CS login: rdspring
+//Email: rdspring1@gmail.com
+//Unique Number: 53426
+//
+//Name2: Jimmy Kettler
+//EID2: jbk97 
+//CS login: jimmyk3t
+//Email: jimmy.kettler@gmail.com
+//Unique Number: 53426
+//
+//Name3: Benjamin Holder
+//EID3: bdh874
+//CS login: bdh874
+//Email: benjamin.holder@utexas.edu
+//Unique Number: 53430
+
 #include "userprog/process.h"
 #include "userprog/syscall.h"
 #include <debug.h>
@@ -531,7 +550,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		p->readonly = writable;
 		p->page_read_bytes = page_read_bytes;
 		p->page_zero_bytes = page_zero_bytes;
-      lock_init(&p->spagelock);
+        lock_init(&p->spagelock);
 		hash_insert (&thread_current()->spagedir, &p->hash_elem);
 
 		/* Advance. */
@@ -551,15 +570,33 @@ setup_stack (void **esp)
 	uint8_t *kpage;
 	bool success = false;
 
-	kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+	kpage = frame_selector (((uint8_t *) PHYS_BASE) - PGSIZE, PAL_USER | PAL_ZERO);
 	if (kpage != NULL) 
 	{
 		stack_bound = ((uint8_t *) PHYS_BASE) - PGSIZE;
 		success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
 		if (success)
+		{
 			*esp = PHYS_BASE;
+			// Add stack page to supplementary page table - rds
+			struct spage * p = (struct spage *) malloc(sizeof(struct spage));
+			if(p != NULL)
+			{
+				p->addr = ((uint8_t *) PHYS_BASE) - PGSIZE;
+				p->state = ZERO;
+				p->file = NULL;
+				p->ofs = 0;
+				p->readonly = true;
+				p->page_read_bytes = 0;
+				p->page_zero_bytes = PGSIZE;
+            	lock_init(&p->spagelock);
+				hash_insert (&thread_current()->spagedir, &p->hash_elem);
+			}
+		}
 		else
+		{
 			palloc_free_page (kpage);
+		}
 	} 
 
 	return success;

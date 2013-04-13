@@ -1,3 +1,22 @@
+// 4/12/2013
+//Name1: Ryan Spring
+//EID1: rds2367
+//CS login: rdspring
+//Email: rdspring1@gmail.com
+//Unique Number: 53426
+//
+//Name2: Jimmy Kettler
+//EID2: jbk97 
+//CS login: jimmyk3t
+//Email: jimmy.kettler@gmail.com
+//Unique Number: 53426
+//
+//Name3: Benjamin Holder
+//EID3: bdh874
+//CS login: bdh874
+//Email: benjamin.holder@utexas.edu
+//Unique Number: 53430
+
 #ifndef USERPROG_PROCESS_H
 #define USERPROG_PROCESS_H
 

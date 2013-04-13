@@ -1,6 +1,27 @@
+// 4/12/2013
+//Name1: Ryan Spring
+//EID1: rds2367
+//CS login: rdspring
+//Email: rdspring1@gmail.com
+//Unique Number: 53426
+//
+//Name2: Jimmy Kettler
+//EID2: jbk97 
+//CS login: jimmyk3t
+//Email: jimmy.kettler@gmail.com
+//Unique Number: 53426
+//
+//Name3: Benjamin Holder
+//EID3: bdh874
+//CS login: bdh874
+//Email: benjamin.holder@utexas.edu
+//Unique Number: 53430
+
 #include <debug.h>
+#include "stdio.h"
 #include "vm/swap.h"
 #include "threads/malloc.h"
+#include "threads/vaddr.h"
 
 #define PAGESECTORSIZE 8
 
@@ -26,19 +47,20 @@ struct swap_t * swap_init()
    return st;
 }
 
-bool swap_read(uint32_t slot, struct swap_t * st, void** readptr)
+bool swap_read(uint32_t slot, struct swap_t * st, void* readptr)
 {
    uint32_t i;
    for (i = 0; i < PAGESECTORSIZE; ++i)
    {
-      block_read (st->swapblock, slot * PAGESECTORSIZE + i, *readptr);
+      block_read (st->swapblock, slot * PAGESECTORSIZE + i, readptr);
+	  readptr = (void*) (((uint8_t*) readptr) + BLOCK_SECTOR_SIZE);
    }
 
    swap_delete(st, slot);
    return true;
 }
 
-int swap_write(struct swap_t * st, void** writeptr)
+int swap_write(struct swap_t * st, void* writeptr)
 {
    int slot = findslot(st);
 
@@ -49,7 +71,8 @@ int swap_write(struct swap_t * st, void** writeptr)
    uint32_t i;
    for (i = 0; i < PAGESECTORSIZE; ++i)
    {
-      block_write (st->swapblock, slot * PAGESECTORSIZE + i, *writeptr);
+      block_write (st->swapblock, slot * PAGESECTORSIZE + i, writeptr);
+	  writeptr = (void*) (((uint8_t*) writeptr) + BLOCK_SECTOR_SIZE);
    }
    return slot;
 }
@@ -57,8 +80,8 @@ int swap_write(struct swap_t * st, void** writeptr)
 void swap_delete(struct swap_t * st, uint32_t slot)
 {
    lock_acquire (&st->lock);
-      st->bitmap[slot] = 0;
-      --st->inuse;
+   st->bitmap[slot] = 0;
+   --st->inuse;
    lock_release(&st->lock);
 }
 
@@ -69,16 +92,16 @@ int findslot(struct swap_t * st)
    bool found = false;
    for (slot = 0; slot < st->size && !found; slot++)
    {
-    	if (st->bitmap[slot] == 0) {
+	   if (st->bitmap[slot] == 0) {
 		   st->bitmap[slot] = 1;
-         ++st->inuse;
-         found = true;
+           ++st->inuse;
+           found = true;
 	   }
    }
    lock_release(&st->lock);
 
    if(found)
-      return slot;
+      return slot-1;
    else
       return -1;
 }
