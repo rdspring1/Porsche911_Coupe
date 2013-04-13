@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <syscall-nr.h>
 #include <string.h>
+#include <stdbool.h>
+#include <debug.h>
+#include <mapid_t.h>
 #include "userprog/syscall.h"
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
@@ -58,6 +61,8 @@ static void sysremove(struct intr_frame* frame, const char* file);
 static void sysseek(int fd, unsigned position);
 static void systell(struct intr_frame *frame, int fd);
 static void syswrite(struct intr_frame *frame, int fd, const void *buffer, unsigned size);
+static void sysmmap(int fd, void *addr, int);
+static void sysmunmap (mapid_t);
 
 /* Determine whether user process pointer is valid;
    Otherwise, return false*/ 
@@ -337,6 +342,50 @@ syscall_handler (struct intr_frame* frame)
 				sysclose(fd);
 			}
 			break;
+		case SYS_MMAP:
+		    {
+		    //mapid_t mmap (int fd, void *addr);
+		    uintptr_t fd = 0;
+            if(check_uptr(kpaddr_sp))
+                fd = next_value(&kpaddr_sp);
+            else
+                sysexit(-1);
+            //check that fd is neither 1 nor 0
+            if(fd == 1 || fd == 0)
+                sysexit(-1);
+
+            const char* file =  next_charptr(&kpaddr_sp);
+            if(file == NULL)
+                sysexit(-1);
+
+            unsigned len = strlen(file);
+            if(!check_buffer(file, len))
+                sysexit(-1);
+
+            uintptr_t length = 0;
+            if(check_uptr(kpaddr_sp))
+                length = next_value(&kpaddr_sp);
+            else
+                sysexit(-1);
+
+            void *data;
+            if (check_uptr(kpaddr_sp))
+                data = (void*) next_value(&kpaddr_sp);
+            else
+                sysexit(-1);
+
+            if(data == 0)
+                sysexit(-1);
+
+            sysmmap(fd, data, length);
+		    }
+		    break;
+		case SYS_MUNMAP:
+		    {
+		    //void munmap (mapid_t);
+
+		    }
+		    break;
 		default:
 			{
 				printf("Unrecognized System Call\n");
@@ -611,6 +660,42 @@ bool ignore_remove(tid_t id)
 		}
 	}
 	return false;
+}
+
+static void
+sysmmap (int fd, void *addr, int size)
+{
+    //get file struct
+    struct file *file = fd_get_file(fd);
+    //create array of mappings
+    struct mapid_t_vals maps;
+    //create mapid_t for this mapping
+    struct mapid_t thisMapping;
+    //initialize all values in maps
+    maps = init(maps);
+    //stick thisMapping into the struct of mapid_ts
+    maps.mappings[maps.next_free - 1] = thisMapping;
+    //initialize values of thisMapping
+    thisMapping.file_size = size;
+    thisMapping.start_address = addr;
+    thisMapping.id = maps.next_free - 1;
+    thisMapping.fd = fd;
+
+
+    //do modulus division of thisMapping.size and page size
+    //add appropriate number of zeros to file
+    //perform memory range check on thisMapping.start_address
+    //copy contents of file into memory
+    //return thisMapping.id to user
+
+
+
+}
+
+static void
+sysmunmap (mapid_t)
+{
+
 }
 
 void 
