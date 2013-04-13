@@ -5,10 +5,10 @@
 #define SECTORS_PER_PAGE 8
 
 // Function Prototype
-int find_slot(struct swap_t * st); 
-void swap_delete(struct swap_t * st, uint32_t slot);
+static int find_slot(struct swap_t * st); 
+static void swap_delete(struct swap_t * st, uint32_t slot);
 
-int find_slot(struct swap_t *st)
+static int find_slot(struct swap_t *st)
 {
 	lock_acquire(&st->lock);
 	
@@ -23,7 +23,7 @@ int find_slot(struct swap_t *st)
 		return (int) slot;
 }
 
-void swap_delete(struct swap_t *st, uint32_t slot)
+static void swap_delete(struct swap_t *st, uint32_t slot)
 {
 	lock_acquire(&st->lock);
 	bitmap_reset(st->bitmap, slot);
@@ -46,12 +46,12 @@ struct swap_t *swap_init()
    return st;
 }
 
-bool swap_read(uint32_t slot, struct swap_t * st, void** readptr)
+bool swap_read(uint32_t slot, struct swap_t * st, void *readptr)
 {
    uint32_t i;
    for (i = 0; i < SECTORS_PER_PAGE; ++i)
    {
-      block_read (st->swapblock, slot * SECTORS_PER_PAGE + i, *readptr);
+      block_read (st->swapblock, slot * SECTORS_PER_PAGE + i, readptr);
    }
 
    swap_delete(st, slot);
