@@ -1,4 +1,3 @@
-#include "threads/palloc.h"
 #include <bitmap.h>
 #include <debug.h>
 #include <inttypes.h>
@@ -11,6 +10,11 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/palloc.h"
+#include "threads/init.h"
+#include "userprog/pagedir.h"
+#include "vm/spage.h"
+#include "vm/swap.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -26,9 +30,17 @@
    half to the user pool.  That should be huge overkill for the
    kernel pool, but that's just fine for demonstration purposes. */
 
-
+// Page Eviction Algorithm
 static size_t page_idx;
 struct frame * frame_eviction(struct frame** framelist);
+struct lock fevict;
+
+void write_dirty_page(bool accessed, struct frame * f, struct spage * page);
+
+// EXTERN - RDS
+/* Swap Table RDS */
+struct swap_t *swaptable;
+
 
 /* A memory pool. */
 struct pool
@@ -37,7 +49,7 @@ struct pool
     struct bitmap *used_map;            /* Bitmap of free pages. */
     uint8_t *base;                      /* Base of pool. */
 	size_t size;						/* Size of pool */
-	int index;							/* Index for framelist */
+	size_t index;							/* Index for framelist */
     struct frame** framelist;           /* Array of frames */
   };
 
@@ -53,6 +65,9 @@ static bool page_from_pool (const struct pool *, void *page);
 void
 palloc_init (size_t user_page_limit)
 {
+  // Initialize Frame Eviction - RDS
+  lock_init(&fevict);
+
   /* Free memory starts at 1 MB and runs to the end of RAM. */
   uint8_t *free_start = ptov (1024 * 1024);
   uint8_t *free_end = ptov (init_ram_pages * PGSIZE);
@@ -69,15 +84,16 @@ palloc_init (size_t user_page_limit)
 
   // Initialize Frame List - rds
   user_pool.framelist = (struct frame **) calloc(user_pages, sizeof(struct frame *));
+  user_pool.index = 0;
 }
 
 
-void *frame_selector (void* upage)
+void *frame_selector (void* upage, enum palloc_flags flags)
 {
 	struct frame * f = (struct frame *) malloc(sizeof(struct frame));
 	f->t = thread_current();
 	f->upage = upage;
-	f->kpage = palloc_get_multiple(PAL_USER | PAL_ZERO, 1);
+	f->kpage = palloc_get_multiple(flags, 1);
 	user_pool.framelist[page_idx] = f;
 	return f->kpage;
 }
@@ -135,35 +151,59 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 // TODO: Second Chance Page Replacement Algorithm
 struct frame * frame_eviction(struct frame** framelist)
 {
-	while(true)
-	{
-		if(user_pool.index == user_pool.size)
-			user_pool.index = 0;
-		
-		struct frame * f = framelist[user_pool.index];
+   lock_acquire(&fevict);
+   bool found = false;
+   struct frame * f = NULL;
+	while(!found)
+	{		
+		f = framelist[user_pool.index];
+      struct spage * page = spage_lookup(&f->t->spagedir, f->upage);
 		bool accessed = pagedir_is_accessed(f->t->pagedir, f->upage);
 		bool dirty = pagedir_is_dirty(f->t->pagedir, f->upage);
 
 		if(accessed && dirty) // Used and Modified
 		{
-
+         write_dirty_page(true, f, page);
 		}
 		else if(!accessed && dirty) // Not Used but Modified
 		{
-
+         write_dirty_page(false, f, page);
 		}
 		else if(accessed && !dirty) // Used but Not Modified
 		{
-
-
+         pagedir_set_accessed(f->t->pagedir, page, false);
 		}
 		else if(!accessed && !dirty) // Not Used or Modified
 		{
-			return f;
+         found = true;
 		}
 
 		++user_pool.index;
+
+		if(user_pool.index == user_pool.size)
+			user_pool.index = 0;
 	}
+   lock_release(&fevict);
+   return f;
+}
+
+void write_dirty_page(bool accessed, struct frame * f, struct spage * page)
+{
+   lock_release(&fevict);
+   lock_acquire(&page->spagelock);
+
+   pagedir_set_dirty(f->t->pagedir, page, false);
+   if(accessed)
+      pagedir_set_accessed(f->t->pagedir, page, false);
+
+   page->state = SWAP;
+   page->swapindex = swap_write(swaptable, &f->kpage);
+
+   // Panic Kernel if no more swap space
+   ASSERT(page->swapindex != -1);
+
+   lock_acquire(&page->spagelock);
+   lock_acquire(&fevict);
 }
 
 /* Obtains a single free page and returns its kernel virtual
@@ -183,6 +223,7 @@ palloc_get_page (enum palloc_flags flags)
 void
 palloc_free_multiple (void *pages, size_t page_cnt) 
 {
+  bool user_pool = false;
   struct pool *pool;
   size_t page_idx;
 
@@ -191,13 +232,26 @@ palloc_free_multiple (void *pages, size_t page_cnt)
     return;
 
   if (page_from_pool (&kernel_pool, pages))
+  {
     pool = &kernel_pool;
+  }
   else if (page_from_pool (&user_pool, pages))
+  { 
+    user_pool = true;
     pool = &user_pool;
+  }
   else
+  {
     NOT_REACHED ();
+  }
 
   page_idx = pg_no (pages) - pg_no (pool->base);
+
+  if(user_pool)
+  {
+     free(pool->framelist[page_idx]);
+     pool->framelist[page_idx] = 0;
+  }
 
 #ifndef NDEBUG
   memset (pages, 0xcc, PGSIZE * page_cnt);

@@ -2,9 +2,35 @@
 #include "vm/swap.h"
 #include "threads/malloc.h"
 
-#define PAGESECTORSIZE 8
+#define SECTORS_PER_PAGE 8
 
-struct swap_t * swap_init()
+// Function Prototype
+static int find_slot(struct swap_t * st); 
+static void swap_delete(struct swap_t * st, uint32_t slot);
+
+static int find_slot(struct swap_t *st)
+{
+	lock_acquire(&st->lock);
+	
+	size_t slot;
+	size_t num_bits = bitmap_size(st->bitmap);
+	slot = bitmap_scan (st->bitmap, 0, num_bits, 0);
+	lock_release(&st->lock);
+
+	if (size_t == BITMAP_ERROR)
+		return -1;
+	else
+		return (int) slot;
+}
+
+static void swap_delete(struct swap_t *st, uint32_t slot)
+{
+	lock_acquire(&st->lock);
+	bitmap_reset(st->bitmap, slot);
+	lock_release(&st->lock);
+}
+
+struct swap_t *swap_init()
 {
    struct swap_t * st = (struct swap_t *) malloc(sizeof(struct swap_t));
    if(st == NULL)
@@ -15,58 +41,41 @@ struct swap_t * swap_init()
       return NULL;
 
    st->swapblock = swapdisk;
-   st->size = block_size(swapdisk) / PAGESECTORSIZE;
-   st->bitmap = (int *) calloc(st->size, sizeof(uint32_t));
-   st->inuse = 0;
+   st->bitmap = *bitmap_create (block_size(swapdisk) / SECTORS_PER_PAGE);
+   lock_init(&st->lock);
    return st;
 }
 
-int swap_read(uint32_t slot, struct swap_t * st, void** readptr)
+bool swap_read(uint32_t slot, struct swap_t * st, void *readptr)
 {
-   if(slot >= st->size)
-      return 0;
+   uint32_t i;
+   for (i = 0; i < SECTORS_PER_PAGE; ++i)
+   {
+      block_read (st->swapblock, slot * SECTORS_PER_PAGE + i, readptr);
+   }
+
+   swap_delete(st, slot);
+   return true;
+}
+
+int swap_slots_in_use(struct swap_t *st)
+{
+	size_t num_bits = bitmap_size(st->bitmap);
+	return (int) bitmap_count (st, 0, num_bits, 1);
+}
+
+int swap_write(struct swap_t * st, void *writeptr)
+{
+   int slot = find_slot(st);
+
+   // No More Stack Space
+   if(slot == -1)
+      return slot;
 
    uint32_t i;
-   for (i = 0; i < PAGESECTORSIZE; ++i)
+   for (i = 0; i < SECTORS_PER_PAGE; ++i)
    {
-      block_read (st->swapblock, slot * PAGESECTORSIZE + i, *readptr);
+      block_write (st->swapblock, slot * SECTORS_PER_PAGE + i, *writeptr);
    }
-   return 1;
-}
-
-int swap_write(uint32_t slot, struct swap_t * st, void** writeptr)
-{
-   if(slot >= st->size)
-      return 0;
-
-   uint32_t i;
-   for (i = 0; i < PAGESECTORSIZE; ++i)
-   {
-      block_write (st->swapblock, slot * PAGESECTORSIZE + i, *writeptr);
-   }
-   return 1;
-}
-
-int swap_load(struct swap_t * st)
-{
-  uint32_t i;
-  for (i = 0; i < st->size; i++)
-  {
-    	if (st->bitmap[i] == 0) {
-			st->bitmap[i] = 1;
-         ++st->inuse;
-			return i;
-		}
-  }
-  return -1; // completely filled array
-}
-
-int swap_delete(struct swap_t * st, uint32_t slot)
-{
-   if(slot >= st->size)
-      return 0;
-
-   st->bitmap[slot] = 0;
-   ++st->inuse;
-   return 1;
+   return slot;
 }

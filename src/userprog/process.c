@@ -20,6 +20,7 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "vm/spage.h"
 
 #define MAX_NAME_LEN 32
@@ -530,6 +531,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		p->readonly = writable;
 		p->page_read_bytes = page_read_bytes;
 		p->page_zero_bytes = page_zero_bytes;
+      lock_init(&p->spagelock);
 		hash_insert (&thread_current()->spagedir, &p->hash_elem);
 
 		/* Advance. */

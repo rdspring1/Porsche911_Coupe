@@ -3,19 +3,18 @@
 
 #include <debug.h>
 #include "devices/block.h"
+#include "threads/synch.h"
 
 struct swap_t
 {
-   struct block * swapblock; /* Swap Disk Block Struct */
-   uint32_t * bitmap;        /* Track Swap Slots */
-   uint32_t size;            /* Number of Swap Slots */
-   uint32_t inuse;           /* Number of Used Swap Slots */
+   struct block *swapblock; /* Swap Disk Block Struct */
+   struct bitmap *bitmap;        /* Track Swap Slots */
+   struct lock lock;         /* Lock for Swap Table */
 };
 
-int swap_read(uint32_t slot, struct swap_t * st, void** readptr);
-int swap_write(uint32_t slot, struct swap_t * st, void** writeptr);
-int swap_load(struct swap_t * st);
-int swap_delete(struct swap_t * st, uint32_t slot);
-struct swap_t * swap_init(void);
+struct swap_t *swap_init(void);
+bool swap_read(uint32_t slot, struct swap_t *st, void *readptr);
+int swap_slots_in_use(struct swap_t *st);
+int swap_write(struct swap_t *st, void *writeptr);
 
 #endif

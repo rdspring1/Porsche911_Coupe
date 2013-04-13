@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include "lib/kernel/hash.h"
 #include "filesys/off_t.h"
+#include "threads/synch.h"
 
 enum page_status
 {
@@ -12,7 +13,7 @@ enum page_status
     SWAP,     /* Page swapped out of memory */
     DISK,     /* Page stored on the disk */
     ZERO,     /* Page completely set to zero */
-	MIXED     /* Page is partially stored on the disk */
+	 MIXED    /* Page is partially stored on the disk */
 };
 
 struct spage
@@ -21,11 +22,12 @@ struct spage
     const void *addr;           /* User Virtual address. */
     enum page_status state;     /* Location of Page */
     bool readonly;              /* Read Only Setting */
-    uint32_t swapindex;         /* Index in the Swap Table */
+    int swapindex;         /* Index in the Swap Table */
 	struct file * file;         /* File on the Disk */
-	off_t ofs;					/* File Offset */
+	off_t ofs;					     /* File Offset */
 	size_t page_read_bytes;     /* Number of bytes read from the file */
 	size_t page_zero_bytes;     /* Number of zero bytes */
+    struct lock spagelock;      /* spage lock */
 };
 
 unsigned spage_hash_hash_func (const struct hash_elem *e, void *aux UNUSED);
