@@ -69,10 +69,7 @@ check_uptr (const void* uptr)
 		if(is_user_vaddr(uptr))
 		{
 			void* kptr = pagedir_get_page(thread_current()->pagedir, uptr);
-			if(kptr != NULL)
-			{
-				return true;
-			}
+			return true;
 		}
 	} 
 	return false;

@@ -52,7 +52,7 @@
 
 // Page Eviction Algorithm
 static size_t page_idx;
-struct frame * frame_eviction(struct frame** framelist);
+struct frame * frame_eviction(struct frame** framelist, enum palloc_flags flags, size_t page_cnt);
 struct lock fevict;
 
 void write_dirty_page(bool accessed, struct frame * f, struct spage * page);
@@ -116,9 +116,9 @@ void *frame_selector (void* upage, enum palloc_flags flags)
 	f->kpage = palloc_get_multiple(flags, 1);
 
 	lock_acquire(&fevict);
+	//free(user_pool.framelist[page_idx - 1]);
 	user_pool.framelist[page_idx - 1] = f;
 	lock_release(&fevict);
-
 	return f->kpage;
 }
 
@@ -162,9 +162,7 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 	  // Implemenent Page EVICTION
 	  if(flags & PAL_USER)
       {
-		  struct frame * f = frame_eviction(pool->framelist);
-		  pagedir_clear_page(f->t->pagedir, f->upage); 
-          memset (f->kpage, 0, PGSIZE * page_cnt);
+		  struct frame * f = frame_eviction(pool->framelist, flags, page_cnt);
 		  return f->kpage;
 	  }
     }
@@ -173,23 +171,19 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 }
 
 // Second Chance Page Replacement Algorithm
-struct frame * frame_eviction(struct frame** framelist)
+struct frame * frame_eviction(struct frame** framelist, enum palloc_flags flags, size_t page_cnt)
 {
-   //lock_acquire(&fevict);
-   bool found = false;
-   struct frame * f = NULL;
+    lock_acquire(&fevict);
+    bool found = false;
+    struct frame * f = NULL;
 	while(!found)
 	{		
 		f = framelist[user_pool.index];
-		ASSERT(f != NULL);
-		//printf("frame %p\n", f);
-		//printf("upage %p\n", f->upage);
-		//printf("spagedir %p\n", &f->t->spagedir);
         struct spage * page = spage_lookup(&f->t->spagedir, f->upage);
 		bool accessed = pagedir_is_accessed(f->t->pagedir, f->upage);
 		bool dirty = pagedir_is_dirty(f->t->pagedir, f->upage);
 
-		//printf("index: %d accessed: %d dirty: %d\n", user_pool.index, pagedir_is_accessed(f->t->pagedir, f->upage), pagedir_is_dirty(f->t->pagedir, f->upage));
+   		lock_try_acquire(&page->spagelock);
 		if(accessed && dirty) // Used and Modified
 		{
          	write_dirty_page(true, f, page);
@@ -206,25 +200,24 @@ struct frame * frame_eviction(struct frame** framelist)
 		{
          	found = true;
 			page_idx = user_pool.index + 1;
+		    pagedir_clear_page(f->t->pagedir, f->upage); 
+
+	  		if(flags & PAL_ZERO)
+            	memset (f->kpage, 0, PGSIZE * page_cnt);
 		}
+   		lock_release(&page->spagelock);
 
 		++user_pool.index;
-
 		if(user_pool.index == user_pool.size-1)
 			user_pool.index = 0;
 	}
-   //lock_release(&fevict);
-   return f;
+    lock_release(&fevict);
+	return f;
 }
 
 void write_dirty_page(bool accessed, struct frame * f, struct spage * page)
 {
-   //lock_release(&fevict);
-   lock_acquire(&page->spagelock);
-
-   pagedir_set_dirty(f->t->pagedir, f->upage, false);
-   if(accessed)
-      pagedir_set_accessed(f->t->pagedir, f->upage, false);
+   lock_release(&fevict);
 
    page->state = SWAP;
    page->swapindex = swap_write(swaptable, f->kpage);
@@ -232,8 +225,11 @@ void write_dirty_page(bool accessed, struct frame * f, struct spage * page)
    // Panic Kernel if no more swap space
    ASSERT(page->swapindex != -1);
 
-   lock_release(&page->spagelock);
-   //lock_acquire(&fevict);
+   pagedir_set_dirty(f->t->pagedir, f->upage, false);
+   if(accessed)
+      pagedir_set_accessed(f->t->pagedir, f->upage, false);
+
+   lock_acquire(&fevict);
 }
 
 /* Obtains a single free page and returns its kernel virtual
@@ -279,10 +275,19 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 
   if(upool && page_idx > 0)
   {
-  	 //lock_acquire(&fevict);
+  	 lock_acquire(&fevict);
      free(pool->framelist[page_idx - 1]);
      pool->framelist[page_idx - 1] = NULL;
-  	 //lock_release(&fevict);
+
+     #ifndef NDEBUG
+     memset (pages, 0xcc, PGSIZE * page_cnt);
+     #endif
+
+     ASSERT (bitmap_all (pool->used_map, page_idx, page_cnt));
+     bitmap_set_multiple (pool->used_map, page_idx, page_cnt, false);
+
+  	 lock_release(&fevict);
+	 return;
   }
 
 #ifndef NDEBUG

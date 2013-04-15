@@ -32,6 +32,7 @@
 #include "threads/palloc.h"
 #include "threads/malloc.h"
 #include "threads/init.h"
+#include "threads/synch.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -208,6 +209,23 @@ page_fault (struct intr_frame *f)
 
 		if(((uint8_t *) fault_addr) < stack_bound && (stackdiff <= 0 || stackdiff == 4 || stackdiff == 32))
 		{
+
+			// Add stack page to supplementary page table - rds
+			struct spage * p = (struct spage *) malloc(sizeof(struct spage));
+			if(p != NULL)
+			{
+				p->addr = upage;
+				p->state = ZERO;
+				p->file = NULL;
+				p->ofs = 0;
+				p->readonly = true;
+				p->page_read_bytes = 0;
+				p->page_zero_bytes = PGSIZE;
+				lock_init(&p->spagelock);
+				hash_insert (&thread_current()->spagedir, &p->hash_elem);
+			}
+
+			lock_acquire(&p->spagelock);
 			uint8_t *kpage = frame_selector (upage, PAL_USER | PAL_ZERO);
 			if (kpage != NULL) 
 			{
@@ -218,23 +236,9 @@ page_fault (struct intr_frame *f)
 				else
 				{
 					stack_bound = upage;
-
-					// Add stack page to supplementary page table - rds
-					struct spage * p = (struct spage *) malloc(sizeof(struct spage));
-					if(p != NULL)
-					{
-						p->addr = upage;
-						p->state = ZERO;
-						p->file = NULL;
-						p->ofs = 0;
-						p->readonly = true;
-						p->page_read_bytes = 0;
-						p->page_zero_bytes = PGSIZE;
-                  		lock_init(&p->spagelock);
-						hash_insert (&thread_current()->spagedir, &p->hash_elem);
-					}
 				}
 			} 
+			lock_release(&p->spagelock);
 			return;
 		}
 		else
@@ -250,6 +254,8 @@ page_fault (struct intr_frame *f)
 		}
 	}
 
+
+	lock_acquire(&page->spagelock);
 	// Fetch data into frame and install page
 	switch(page->state)
 	{
@@ -320,5 +326,6 @@ page_fault (struct intr_frame *f)
 				ASSERT(page->state == SHARED);
 			}
 	}
+	lock_release(&page->spagelock);
 }
 
